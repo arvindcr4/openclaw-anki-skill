@@ -28,11 +28,10 @@ def anki_request(action, **params):
     return result.get("result")
 
 
-def add_card(deck, front, back, tags=""):
+def add_card(deck, front, back, tags="", suspend=False):
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
-    # Ensure deck exists
     anki_request("createDeck", deck=deck)
-    result = anki_request(
+    note_id = anki_request(
         "addNote",
         note={
             "deckName": deck,
@@ -42,14 +41,76 @@ def add_card(deck, front, back, tags=""):
             "options": {"allowDuplicate": False},
         },
     )
-    print(json.dumps({"ok": True, "noteId": result, "deck": deck}))
+    if suspend and note_id:
+        cards = anki_request("findCards", query=f"nid:{note_id}")
+        if cards:
+            anki_request("suspend", cards=cards)
+    print(json.dumps({"ok": True, "noteId": note_id, "deck": deck, "suspended": suspend}))
+
+
+def quick_add(deck, text, tags=""):
+    """Quick add using spacing shortcut:
+    - double space between Q and A  →  don't remember  →  normal card
+    - single space between Q and A  →  remember        →  suspended card
+    """
+    if "  " in text:
+        # Double space = don't remember
+        parts = text.split("  ", 1)
+        add_card(deck, parts[0].strip(), parts[1].strip(), tags, suspend=False)
+    else:
+        # Single space = remember
+        parts = text.split(" ", 1)
+        if len(parts) < 2:
+            print(json.dumps({"error": "Need at least two words separated by a space"}))
+            sys.exit(1)
+        add_card(deck, parts[0].strip(), parts[1].strip(), tags, suspend=True)
+
+
+def quick_batch(deck, lines_text, tags=""):
+    """Batch quick add: one card per line, spacing shortcut applies per line."""
+    lines = lines_text.strip().split("\n")
+    anki_request("createDeck", deck=deck)
+    added = 0
+    suspended = 0
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "  " in line:
+            parts = line.split("  ", 1)
+            suspend = False
+        else:
+            parts = line.split(" ", 1)
+            suspend = True
+        if len(parts) < 2:
+            continue
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+        note_id = anki_request(
+            "addNote",
+            note={
+                "deckName": deck,
+                "modelName": "Basic",
+                "fields": {"Front": parts[0].strip(), "Back": parts[1].strip()},
+                "tags": tag_list,
+                "options": {"allowDuplicate": False},
+            },
+        )
+        if note_id:
+            added += 1
+            if suspend:
+                cards = anki_request("findCards", query=f"nid:{note_id}")
+                if cards:
+                    anki_request("suspend", cards=cards)
+                    suspended += 1
+    print(json.dumps({"ok": True, "added": added, "suspended": suspended, "active": added - suspended, "deck": deck}))
 
 
 def add_batch(deck, cards_json):
-    """cards_json: JSON array of {"front": "...", "back": "...", "tags": "..."}"""
+    """cards_json: JSON array of {"front": "...", "back": "...", "tags": "...", "suspend": bool}"""
     cards = json.loads(cards_json)
     anki_request("createDeck", deck=deck)
     notes = []
+    suspend_flags = []
     for c in cards:
         tag_list = [t.strip() for t in c.get("tags", "").split(",") if t.strip()]
         notes.append({
@@ -59,10 +120,18 @@ def add_batch(deck, cards_json):
             "tags": tag_list,
             "options": {"allowDuplicate": False},
         })
+        suspend_flags.append(c.get("suspend", False))
     results = anki_request("addNotes", notes=notes)
     added = sum(1 for r in results if r is not None)
     dupes = sum(1 for r in results if r is None)
-    print(json.dumps({"ok": True, "added": added, "duplicates": dupes, "deck": deck}))
+    suspended = 0
+    for note_id, should_suspend in zip(results, suspend_flags):
+        if note_id and should_suspend:
+            card_ids = anki_request("findCards", query=f"nid:{note_id}")
+            if card_ids:
+                anki_request("suspend", cards=card_ids)
+                suspended += 1
+    print(json.dumps({"ok": True, "added": added, "duplicates": dupes, "suspended": suspended, "deck": deck}))
 
 
 def list_decks():
@@ -110,7 +179,8 @@ def import_file(deck, filepath):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: anki_push.py <command> [args...]")
-        print("Commands: health, add, batch, import, decks, stats, sync")
+        print("Commands: health, add, quick, quickbatch, batch, import, decks, stats, sync")
+        print("Spacing shortcut: double space = don't remember, single space = remember (suspended)")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -121,6 +191,18 @@ if __name__ == "__main__":
             print("Usage: anki_push.py add <deck> <front> <back> [tags]")
             sys.exit(1)
         add_card(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else "")
+    elif cmd == "quick":
+        if len(sys.argv) < 4:
+            print("Usage: anki_push.py quick <deck> '<front  back>' [tags]")
+            print("  Double space = don't remember (active card)")
+            print("  Single space = remember (suspended card)")
+            sys.exit(1)
+        quick_add(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
+    elif cmd == "quickbatch":
+        if len(sys.argv) < 4:
+            print("Usage: anki_push.py quickbatch <deck> '<lines>' [tags]")
+            sys.exit(1)
+        quick_batch(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "batch":
         if len(sys.argv) < 4:
             print("Usage: anki_push.py batch <deck> '<json_array>'")

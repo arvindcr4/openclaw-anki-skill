@@ -15,9 +15,19 @@
       "description": "Add a single flashcard. deck=deck name, front=question, back=answer, tags=comma-separated."
     },
     {
+      "name": "anki_quick",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py quick \"{{deck}}\" \"{{text}}\" \"{{tags}}\"",
+      "description": "Quick add using spacing shortcut. Double space between Q and A = don't remember (active card). Single space = remember (suspended). Example: 'What is X  It is Y' (don't remember) vs 'What is X It is Y' (remember)."
+    },
+    {
+      "name": "anki_quickbatch",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py quickbatch \"{{deck}}\" '{{lines}}' \"{{tags}}\"",
+      "description": "Batch quick add, one card per line. Spacing shortcut applies per line. Double space = don't remember, single space = remember (suspended)."
+    },
+    {
       "name": "anki_batch",
       "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py batch \"{{deck}}\" '{{cards_json}}'",
-      "description": "Add multiple cards at once. cards_json = JSON array of {front, back, tags} objects."
+      "description": "Add multiple cards at once. cards_json = JSON array of {front, back, tags, suspend} objects."
     },
     {
       "name": "anki_import",
