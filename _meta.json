@@ -1,0 +1,43 @@
+{
+  "name": "anki",
+  "version": "1.0.0",
+  "description": "Push flashcards to Anki via AnkiConnect over Tailscale (Mac at 100.108.20.44:8765).",
+  "author": "Ove",
+  "tools": [
+    {
+      "name": "anki_health",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py health",
+      "description": "Check if AnkiConnect is reachable on the Mac."
+    },
+    {
+      "name": "anki_add",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py add \"{{deck}}\" \"{{front}}\" \"{{back}}\" \"{{tags}}\"",
+      "description": "Add a single flashcard. deck=deck name, front=question, back=answer, tags=comma-separated."
+    },
+    {
+      "name": "anki_batch",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py batch \"{{deck}}\" '{{cards_json}}'",
+      "description": "Add multiple cards at once. cards_json = JSON array of {front, back, tags} objects."
+    },
+    {
+      "name": "anki_import",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py import \"{{deck}}\" \"{{filepath}}\"",
+      "description": "Import cards from a pipe-delimited text file (Question | Answer | Tags)."
+    },
+    {
+      "name": "anki_decks",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py decks",
+      "description": "List all Anki decks."
+    },
+    {
+      "name": "anki_stats",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py stats \"{{deck}}\"",
+      "description": "Get stats for a specific deck."
+    },
+    {
+      "name": "anki_sync",
+      "command": "python3 ~/.openclaw/workspace/skills/anki/anki_push.py sync",
+      "description": "Trigger AnkiWeb sync on the Mac."
+    }
+  ]
+}
